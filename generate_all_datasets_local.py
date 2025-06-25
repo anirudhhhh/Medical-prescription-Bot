@@ -14,11 +14,19 @@ from pathlib import Path
 from typing import List, Dict
 import torch
 from tqdm import tqdm
+from openai import AuthenticationError
 
 # Add scripts directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'scripts'))
 
 from data_generator import DataGenerator
+
+def count_lines(filepath: str) -> int:
+    """Counts the number of lines in a file."""
+    if not os.path.exists(filepath):
+        return 0
+    with open(filepath, 'r') as f:
+        return sum(1 for _ in f)
 
 def check_gpu():
     """Check if GPU is available and print info"""
@@ -69,21 +77,31 @@ def load_config():
     print(f"📋 Loaded {len(topics)} topics from config")
     return topics
 
-def generate_dataset_for_topic(generator: DataGenerator, topic: str, samples: int, output_path: str):
-    """Generate dataset for a specific topic with error handling"""
+def generate_dataset_for_topic(generator: DataGenerator, topic: str, samples: int, output_path: str, append: bool = False):
+    """
+    Generate dataset for a specific topic with error handling.
+    Returns 'success', 'failure', or 'auth_error'.
+    """
     try:
         print(f"\n🔄 Generating {samples} samples for: {topic}")
         start_time = time.time()
         
-        generator.generate_topic_specific_dataset(topic, samples, output_path)
+        generator.generate_topic_specific_dataset(topic, samples, output_path, append=append)
         
         elapsed_time = time.time() - start_time
         print(f"✅ Completed {topic} in {elapsed_time:.1f}s")
         
-        return True
+        return 'success'
+    except AuthenticationError:
+        print(f"\n❌ FATAL: Groq API Authentication Error for topic '{topic}'.")
+        # Remove partial file if it exists
+        if os.path.exists(output_path):
+            print(f"🧹 Removing partial dataset file for {topic} due to authentication error.")
+            os.remove(output_path)
+        return 'auth_error'
     except Exception as e:
         print(f"❌ Error generating {topic}: {str(e)}")
-        return False
+        return 'failure'
 
 def main():
     parser = argparse.ArgumentParser(description='Generate medical conversation datasets for all topics')
@@ -91,8 +109,8 @@ def main():
                        help='Number of samples to generate per topic (default: 200)')
     parser.add_argument('--topics', nargs='+', default=None,
                        help='Specific topics to generate (default: all topics)')
-    parser.add_argument('--skip-existing', action='store_true',
-                       help='Skip topics that already have datasets')
+    parser.add_argument('--resume', action='store_true',
+                       help='Resume generation. Skips completed topics and regenerates partial ones.')
     parser.add_argument('--max-topics', type=int, default=None,
                        help='Maximum number of topics to process (for testing)')
     parser.add_argument('--delay', type=float, default=1.0,
@@ -143,21 +161,36 @@ def main():
     # Generate datasets
     for i, topic in enumerate(topics, 1):
         output_path = f"data/{topic}_dataset.jsonl"
-        
-        # Skip if file exists and skip-existing is set
-        if args.skip_existing and os.path.exists(output_path):
-            print(f"⏭️  Skipping {topic} (file exists)")
-            continue
-        
+        samples_to_generate = args.samples_per_topic
+        should_append = False
+
+        # If resuming, check existing file
+        if args.resume and os.path.exists(output_path):
+            existing_samples = count_lines(output_path)
+            if existing_samples >= args.samples_per_topic:
+                print(f"✅ Skipping {topic} ({existing_samples} samples already exist).")
+                successful_topics.append(topic)
+                continue
+            else:
+                print(f"⚠️ Found partial dataset for {topic} ({existing_samples}/{args.samples_per_topic}). Deleting and regenerating.")
+                os.remove(output_path)
+                # Let the script continue to generate the full dataset from scratch
+                
         print(f"\n[{i}/{len(topics)}] Processing: {topic}")
         
-        success = generate_dataset_for_topic(generator, topic, args.samples_per_topic, output_path)
+        status = generate_dataset_for_topic(generator, topic, samples_to_generate, output_path, append=should_append)
         
-        if success:
+        if status == 'success':
             successful_topics.append(topic)
-            total_samples += args.samples_per_topic
-        else:
+            total_samples += samples_to_generate
+        elif status == 'failure':
             failed_topics.append(topic)
+        elif status == 'auth_error':
+            print("\n🛑 API key has failed. Halting generation.")
+            print("   Please set a new 'GROQ_API_KEY' environment variable.")
+            print("   You can resume later by running the script with the --resume flag.")
+            failed_topics.append(topic)
+            break # Stop the loop
         
         # Add delay between topics to avoid rate limits
         if i < len(topics):

@@ -73,7 +73,7 @@ class DataGenerator:
         print(f"Generated {len(samples)} samples. Saved to {output_path}")
         return output_path
     
-    def generate_topic_specific_dataset(self, topic: str, num_samples: int, output_path: str, append: bool = False) -> str:
+    def generate_topic_specific_dataset(self, topic: str, num_samples: int, output_path: str) -> str:
         """
         Generate dataset for a specific medical topic
         
@@ -81,15 +81,10 @@ class DataGenerator:
             topic: Medical topic to focus on
             num_samples: Number of samples to generate
             output_path: Path to save the dataset
-            append: Whether to append to the file or overwrite
         
         Returns:
             Path to generated dataset
         """
-        if num_samples <= 0:
-            print(f"No new samples to generate for {topic}.")
-            return output_path
-
         print(f"Generating {num_samples} samples for topic: {topic}")
         
         samples = []
@@ -107,16 +102,15 @@ class DataGenerator:
                 
                 time.sleep(1)
         
-        self._save_dataset(samples, output_path, append=append)
+        self._save_dataset(samples, output_path)
         print(f"Generated {len(samples)} samples for {topic}. Saved to {output_path}")
         return output_path
     
-    def _save_dataset(self, samples: List[Dict], output_path: str, append: bool = False):
+    def _save_dataset(self, samples: List[Dict], output_path: str):
         """Save dataset to JSONL file"""
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
-        mode = 'a' if append else 'w'
-        with open(output_path, mode) as f:
+        with open(output_path, 'w') as f:
             for sample in samples:
                 f.write(json.dumps(sample) + '\n')
     

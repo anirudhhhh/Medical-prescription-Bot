@@ -1,0 +1,74 @@
+{
+  "teacher_models": {
+    "groq": {
+      "api_base": "https://api.groq.com/openai/v1",
+      "model_name": "llama3-70b-8192",
+      "api_key_env": "GROQ_API_KEY",
+      "max_tokens": 2000,
+      "temperature": 0.7,
+      "top_p": 0.9
+    }
+  },
+  "student_models": {
+    "t5": {
+      "model_name": "t5-base",
+      "max_length": 512,
+      "batch_size": 8,
+      "learning_rate": 5e-5
+    },
+    "gpt2": {
+      "model_name": "gpt2-medium",
+      "max_length": 512,
+      "batch_size": 4,
+      "learning_rate": 5e-5
+    },
+    "llama": {
+      "model_name": "meta-llama/Llama-2-7b-hf",
+      "max_length": 512,
+      "batch_size": 2,
+      "learning_rate": 5e-5
+    }
+  },
+  "generation_settings": {
+    "conversation_topics": [
+      "hypertension", "diabetes", "asthma", "depression", "anxiety",
+      "common_cold", "flu", "back_pain", "headaches", "insomnia",
+      "allergies", "skin_conditions", "digestive_issues", "heart_conditions",
+      "emergency_scenarios", "routine_checkups", "medication_refills",
+      "chest_pain", "shortness_of_breath", "palpitations", "stroke",
+      "pneumonia", "bronchitis", "covid19", "tuberculosis", "hepatitis",
+      "urinary_tract_infection", "kidney_stones", "chronic_kidney_disease",
+      "liver_disease", "cirrhosis", "gallstones", "appendicitis",
+      "gastroesophageal_reflux", "ulcer", "constipation", "diarrhea",
+      "irritable_bowel_syndrome", "crohns_disease", "ulcerative_colitis",
+      "migraine", "tension_headache", "cluster_headache", "epilepsy",
+      "parkinsons_disease", "multiple_sclerosis", "dementia", "alzheimers",
+      "osteoporosis", "arthritis", "rheumatoid_arthritis", "lupus",
+      "psoriasis", "eczema", "acne", "dermatitis", "skin_cancer",
+      "breast_cancer", "prostate_cancer", "lung_cancer", "colon_cancer",
+      "cervical_cancer", "ovarian_cancer", "testicular_cancer",
+      "pregnancy", "prenatal_care", "postpartum", "contraception",
+      "menstrual_disorders", "menopause", "erectile_dysfunction",
+      "benign_prostatic_hyperplasia", "infertility", "sexual_health",
+      "pediatric_fever", "childhood_vaccines", "autism", "adhd",
+      "growth_and_development", "adolescent_health", "geriatric_falls",
+      "dementia_care", "polypharmacy", "end_of_life_care",
+      "substance_abuse", "alcohol_use_disorder", "smoking_cessation",
+      "obesity", "weight_management", "nutrition", "exercise_counseling",
+      "travel_medicine", "immunizations", "rare_diseases", "genetic_disorders",
+      "blood_disorders", "anemia", "sickle_cell", "hemophilia",
+      "thyroid_disorders", "diabetes_type1", "diabetes_type2", "metabolic_syndrome",
+      "sleep_apnea", "restless_leg_syndrome", "chronic_fatigue",
+      "fibromyalgia", "chronic_pain", "wound_care", "burns", "fractures",
+      "sports_injuries", "occupational_health", "hearing_loss", "vision_problems",
+      "glaucoma", "cataracts", "macular_degeneration", "otitis_media",
+      "sinusitis", "tonsillitis", "dental_pain", "oral_health",
+      "mental_health_crisis", "suicidal_ideation", "ptsd", "panic_disorder",
+      "bipolar_disorder", "schizophrenia", "grief_counseling", "family_planning"
+    ],
+    "patient_moods": ["worried", "calm", "panicked", "relaxed", "concerned", "optimistic"],
+    "conversation_length": {"min_exchanges": 3, "max_exchanges": 8},
+    "samples_per_topic": 50,
+    "total_samples": 1000
+  }
+} 
