@@ -113,7 +113,7 @@ class StudentTrainer:
     
     def train(self, train_data_path: str, output_dir: str, 
               num_epochs: int = 3, batch_size: int = None, 
-              learning_rate: float = None) -> str:
+              learning_rate: float = None, eval_data_path: str = None) -> str:
         """
         Train the student model
         
@@ -123,6 +123,7 @@ class StudentTrainer:
             num_epochs: Number of training epochs
             batch_size: Training batch size
             learning_rate: Learning rate
+            eval_data_path: Path to evaluation/validation data (optional)
         
         Returns:
             Path to trained model
@@ -132,8 +133,9 @@ class StudentTrainer:
         if learning_rate is None:
             learning_rate = self.model_config['learning_rate']
         
-        # Prepare dataset
-        dataset = self.prepare_dataset(train_data_path)
+        # Prepare datasets
+        train_dataset = self.prepare_dataset(train_data_path)
+        eval_dataset = self.prepare_dataset(eval_data_path) if eval_data_path else None
         
         # Training arguments
         training_args = TrainingArguments(
@@ -144,10 +146,10 @@ class StudentTrainer:
             warmup_steps=100,
             logging_steps=10,
             save_steps=500,
-            eval_steps=500,
-            evaluation_strategy="steps",
+            eval_strategy="steps" if eval_dataset else "no",
+            eval_steps=500 if eval_dataset else None,
             save_total_limit=2,
-            load_best_model_at_end=True,
+            load_best_model_at_end=True if eval_dataset else False,
             metric_for_best_model="eval_loss",
             greater_is_better=False,
             dataloader_pin_memory=False,
@@ -156,9 +158,9 @@ class StudentTrainer:
         
         # Initialize trainer
         if self.model_type == 't5':
-            trainer = self._create_t5_trainer(dataset, training_args)
+            trainer = self._create_t5_trainer(train_dataset, training_args, eval_dataset)
         else:
-            trainer = self._create_causal_trainer(dataset, training_args)
+            trainer = self._create_causal_trainer(train_dataset, training_args, eval_dataset)
         
         # Train model
         print(f"Starting training for {self.model_type} model...")
@@ -172,7 +174,7 @@ class StudentTrainer:
         print(f"Training completed. Model saved to {model_path}")
         return model_path
     
-    def _create_t5_trainer(self, dataset: Dataset, training_args: TrainingArguments):
+    def _create_t5_trainer(self, dataset: Dataset, training_args: TrainingArguments, eval_dataset=None):
         """Create T5 trainer"""
         def tokenize_function(examples):
             inputs = self.tokenizer(
@@ -180,17 +182,15 @@ class StudentTrainer:
                 truncation=True,
                 padding='max_length',
                 max_length=self.model_config['max_length'],
-                return_tensors='pt'
+                # REMOVE return_tensors='pt'
             )
-            
             targets = self.tokenizer(
                 examples['target_text'],
                 truncation=True,
                 padding='max_length',
                 max_length=self.model_config['max_length'],
-                return_tensors='pt'
+                # REMOVE return_tensors='pt'
             )
-            
             return {
                 'input_ids': inputs['input_ids'],
                 'attention_mask': inputs['attention_mask'],
@@ -198,16 +198,18 @@ class StudentTrainer:
             }
         
         # Tokenize dataset
-        tokenized_dataset = dataset.map(tokenize_function, batched=True)
+        tokenized_samples = [tokenize_function(sample) for sample in dataset]
+        tokenized_eval_samples = [tokenize_function(sample) for sample in eval_dataset] if eval_dataset else None
         
         return Trainer(
             model=self.model,
             args=training_args,
-            train_dataset=tokenized_dataset,
+            train_dataset=tokenized_samples,
+            eval_dataset=tokenized_eval_samples,
             tokenizer=self.tokenizer,
         )
     
-    def _create_causal_trainer(self, dataset: Dataset, training_args: TrainingArguments):
+    def _create_causal_trainer(self, dataset: Dataset, training_args: TrainingArguments, eval_dataset=None):
         """Create causal LM trainer (GPT-2, Llama)"""
         def tokenize_function(examples):
             return self.tokenizer(
@@ -220,6 +222,7 @@ class StudentTrainer:
         
         # Tokenize dataset
         tokenized_dataset = dataset.map(tokenize_function, batched=True)
+        tokenized_eval_dataset = eval_dataset.map(tokenize_function, batched=True) if eval_dataset else None
         
         # Data collator
         data_collator = DataCollatorForLanguageModeling(
@@ -231,6 +234,7 @@ class StudentTrainer:
             model=self.model,
             args=training_args,
             train_dataset=tokenized_dataset,
+            eval_dataset=tokenized_eval_dataset,
             tokenizer=self.tokenizer,
             data_collator=data_collator,
         )
@@ -295,6 +299,8 @@ def main():
                        help='Learning rate')
     parser.add_argument('--evaluate', action='store_true',
                        help='Evaluate model after training')
+    parser.add_argument('--eval_data', type=str, default=None,
+                       help='Path to evaluation/validation data (optional, enables evaluation during training)')
     
     args = parser.parse_args()
     
@@ -307,7 +313,8 @@ def main():
         args.output_dir,
         args.num_epochs,
         args.batch_size,
-        args.learning_rate
+        args.learning_rate,
+        args.eval_data
     )
     
     # Evaluate if requested

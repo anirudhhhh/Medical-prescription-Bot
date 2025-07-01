@@ -94,10 +94,6 @@ def generate_dataset_for_topic(generator: DataGenerator, topic: str, samples: in
         return 'success'
     except AuthenticationError:
         print(f"\n❌ FATAL: Groq API Authentication Error for topic '{topic}'.")
-        # Remove partial file if it exists
-        if os.path.exists(output_path):
-            print(f"🧹 Removing partial dataset file for {topic} due to authentication error.")
-            os.remove(output_path)
         return 'auth_error'
     except Exception as e:
         print(f"❌ Error generating {topic}: {str(e)}")

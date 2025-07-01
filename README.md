@@ -38,81 +38,68 @@ knowledge_distillation_pipeline/
 └── requirements.txt                # Python dependencies
 ```
 
-## Usage Guide
+## Step-by-Step Usage Guide
 
-This pipeline is designed in two main steps: first, generate your training data, and second, train a student model on that data.
+### 1. Prepare for Data Generation
 
-### **Step 1: Generate Training Datasets**
+- **Ensure the `data/` folder is empty** before starting a new generation run. You can clear it with:
+  ```sh
+  rm -rf data/*
+  ```
+- **Obtain a Groq API key** from your Groq account.
+- **Set the API key when prompted** (or export it in your terminal):
+  ```sh
+  export GROQ_API_KEY="your_groq_api_key_here"
+  ```
 
-This is the recommended way to create your training data. It efficiently generates samples for all 100+ medical topics defined in `configs/model_configs.json`.
+### 2. Generate Training Data
 
-**Option A: Generate Datasets for All Topics (Recommended)**
-```bash
-# Generate 200 samples for every topic
-python generate_all_datasets_local.py --samples-per-topic 200
+- Run the data generation script. You will be prompted for your Groq API key if it is not set:
+  ```sh
+  python3 generate_all_datasets_local.py --samples-per-topic 200 --resume
+  ```
+- **If your Groq API key runs out or expires during generation:**
+  1. Obtain a new Groq API key.
+  2. Set the new key:
+     ```sh
+     export GROQ_API_KEY="your_new_groq_api_key"
+     ```
+  3. Rerun the data generator with the same command and the `--resume` flag:
+     ```sh
+     python3 generate_all_datasets_local.py --samples-per-topic 200 --resume
+     ```
+  - The script will skip completed topics and regenerate any partial datasets, ensuring data integrity.
 
-# For a quick test, generate 50 samples for a maximum of 5 topics
-python generate_all_datasets_local.py --max-topics 5 --samples-per-topic 50
-```
+### 3. Train the Student Model
 
-**Option B: Generate Data for Specific Topics**
-```bash
-# Generate data only for diabetes, hypertension, and asthma
-python generate_all_datasets_local.py --topics diabetes hypertension asthma
-```
+- Once data generation is complete, train a student model (e.g., T5) using the generated data:
+  ```sh
+  python3 scripts/student_trainer.py \
+      --model_type t5 \
+      --train_data data/diabetes_dataset.jsonl \
+      --output_dir models/t5_diabetes_student \
+      --num_epochs 3 \
+      --evaluate
+  ```
+- Replace `data/diabetes_dataset.jsonl` with the dataset for your topic of interest.
 
-**Advanced Generation Options**
-```bash
-# Resume generation: skip completed topics, regenerate partial ones
-python generate_all_datasets_local.py --resume
+### 4. Test/Evaluate the Model
 
-# Add a 2-second delay between API calls to avoid rate limits
-python generate_all_datasets_local.py --delay 2.0
-```
+- After training, you can evaluate the model using the metrics evaluator script:
+  ```sh
+  python3 scripts/metrics_evaluator.py
+  ```
+- Review the output files in the `outputs/` directory for evaluation results and reports.
 
-### **Step 2: Train a Student Model**
+---
 
-Once your datasets are generated, you can train a student model on any of them.
+## Troubleshooting & Tips
 
-**Train a T5 Model (Sequence-to-Sequence)**
-```bash
-python scripts/student_trainer.py \
-    --model_type t5 \
-    --train_data data/diabetes_dataset.jsonl \
-    --output_dir models/t5_diabetes_student \
-    --num_epochs 3 \
-    --evaluate
-```
-
-**Train a GPT-2 Model (Causal Language Modeling)**
-```bash
-python scripts/student_trainer.py \
-    --model_type gpt2 \
-    --train_data data/hypertension_dataset.jsonl \
-    --output_dir models/gpt2_hypertension_student \
-    --num_epochs 5
-```
-
-**Train a Llama Model (Causal Language Modeling)**
-```bash
-python scripts/student_trainer.py \
-    --model_type llama \
-    --train_data data/asthma_dataset.jsonl \
-    --output_dir models/llama_asthma_student \
-    --num_epochs 3
-```
-
-### **All-in-One Pipeline (Alternative)**
-
-If you prefer to run generation and training in a single command, use the `run_pipeline.py` script.
-
-```bash
-python scripts/run_pipeline.py \
-    --teacher_model groq \
-    --num_samples 500 \
-    --student_model t5 \
-    --num_epochs 3
-```
+- **Always start with an empty `data/` folder for a new generation run.**
+- **Use the `--resume` flag** to safely continue interrupted data generation.
+- **Set your Groq API key** before running any script that requires it.
+- **If you encounter an authentication error,** get a new API key and rerun the generator with `--resume`.
+- **Monitor the `outputs/` folder** for generation summaries and evaluation reports.
 
 ## Supported Models
 
@@ -193,68 +180,6 @@ For cloud-based processing, use the provided Colab notebook:
 - `outputs/{model_type}_sample_outputs.json` - Sample model outputs
 - `outputs/generation_summary.json` - Data generation summary
 - `outputs/comprehensive_metrics.json` - Model evaluation metrics
-
-## Troubleshooting
-
-### Common Issues
-
-1. **API Rate Limits**
-   - Use `--delay` parameter to add delays between API calls
-   - Monitor your Groq API usage
-
-2. **Memory Issues**
-   - Reduce batch size in student model configuration
-   - Use smaller models for limited GPU memory
-
-3. **Import Errors**
-   - Ensure you're running from the project root directory
-   - Check that all dependencies are installed
-
-4. **JSON Validation Errors**
-   - Check teacher model prompts in `teacher_model_client.py`
-   - Verify API responses are properly formatted
-
-### Performance Tips
-
-- **GPU Usage**: Ensure CUDA is properly installed for GPU acceleration
-- **Batch Processing**: Use `--resume` to safely resume interrupted generation
-- **API Efficiency**: Adjust `--delay` based on your Groq API tier limits
-
-## Advanced Usage
-
-### Custom Topics
-Add new medical topics in `configs/model_configs.json`:
-
-```json
-"conversation_topics": [
-  "hypertension", "diabetes", "asthma", "your_custom_topic"
-]
-```
-
-### Custom Student Models
-Add new student model configurations:
-
-```json
-"student_models": {
-  "your_model": {
-    "model_name": "your/model/path",
-    "max_length": 512,
-    "batch_size": 8,
-    "learning_rate": 5e-5
-  }
-}
-```
-
-### Batch Processing
-Generate datasets in batches to manage API costs:
-
-```bash
-# Generate first 20 topics
-python generate_all_datasets_local.py --max-topics 20
-
-# Generate next 20 topics (resume, robust)
-python generate_all_datasets_local.py --max-topics 40 --resume
-```
 
 ## API Costs
 
